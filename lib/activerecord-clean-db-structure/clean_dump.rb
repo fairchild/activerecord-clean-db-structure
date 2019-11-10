@@ -54,21 +54,23 @@ module ActiveRecordCleanDbStructure
         dump.gsub!(/^-- .*_id_seq; Type: SEQUENCE.*/, '')
         dump.gsub!(/^-- Name: (\w+\s+)?\w+_pkey; Type: CONSTRAINT$/, '')
       end
+      
+      unless options[:ignore_inherited_tables] == true
+        # Remove inherited tables
+        inherited_tables_regexp = /-- Name: ([\w_\.]+); Type: TABLE\n\n[^;]+?INHERITS \([\w_\.]+\);/m
+        inherited_tables = dump.scan(inherited_tables_regexp).map(&:first)
+        dump.gsub!(inherited_tables_regexp, '')
+        inherited_tables.each do |inherited_table|
+          dump.gsub!(/ALTER TABLE ONLY ([\w_]+\.)?#{inherited_table}[^;]+;/, '')
 
-      # Remove inherited tables
-      inherited_tables_regexp = /-- Name: ([\w_\.]+); Type: TABLE\n\n[^;]+?INHERITS \([\w_\.]+\);/m
-      inherited_tables = dump.scan(inherited_tables_regexp).map(&:first)
-      dump.gsub!(inherited_tables_regexp, '')
-      inherited_tables.each do |inherited_table|
-        dump.gsub!(/ALTER TABLE ONLY ([\w_]+\.)?#{inherited_table}[^;]+;/, '')
-
-        index_regexp = /CREATE INDEX ([\w_]+) ON ([\w_]+\.)?#{inherited_table}[^;]+;/m
-        dump.scan(index_regexp).map(&:first).each do |inherited_table_index|
-          dump.gsub!("-- Name: #{inherited_table_index}; Type: INDEX", '')
+          index_regexp = /CREATE INDEX ([\w_]+) ON ([\w_]+\.)?#{inherited_table}[^;]+;/m
+          dump.scan(index_regexp).map(&:first).each do |inherited_table_index|
+            dump.gsub!("-- Name: #{inherited_table_index}; Type: INDEX", '')
+          end
+          dump.gsub!(index_regexp, '')
         end
-        dump.gsub!(index_regexp, '')
       end
-
+      
       # Remove partitioned tables
       partitioned_tables = []
 
